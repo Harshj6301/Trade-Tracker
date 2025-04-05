@@ -9,23 +9,22 @@ def get_default_trade_entry():
         "Trade Date": datetime.now().strftime("%Y-%m-%d"),
         "Stock/Symbol": "",
         "Strategy": "",
-        "CE/PE": "CE",  # Added CE/PE
+        "CE/PE": "CE",
         "Entry Price": None,
         "Exit Price": None,
-        "Lot Size": None,  # Changed to Lot Size
-        "Quantity": None,  # Changed to Quantity
-        "Total Quantity": None, # Added Total Quantity
+        "Lot Size": None,
+        "Quantity": None,
+        "Total Quantity": None,
         "Profit/Loss": None,
         "RRR": None,
         "Notes": "",
         "Image": None,
-        "Level": None,
-        "Criteria": None,
-        "Current Wave": None, # Added Current Wave
+        "Confidence Level": None,  # Changed
+        "Criteria": [],  # Changed to list for multiselect
+        "Current Wave": None,
     }
 
 # --- Helper Functions ---
-
 def calculate_profit_loss(entry_price, exit_price, total_quantity):
     """Calculates profit/loss, handling potential errors."""
     if entry_price is not None and exit_price is not None and total_quantity is not None:
@@ -49,17 +48,16 @@ def calculate_rrr(entry_price, exit_price, lot_size, quantity):
 
 def add_trade(trades, new_trade):
     """Adds a new trade to the list, and recalculates derived values.
-       Handles missing data gracefully.
     """
     # Convert string inputs to numeric, handling empty strings
     try:
         new_trade["Entry Price"] = float(new_trade["Entry Price"]) if new_trade["Entry Price"] else None
         new_trade["Exit Price"] = float(new_trade["Exit Price"]) if new_trade["Exit Price"] else None
-        new_trade["Lot Size"] = float(new_trade["Lot Size"]) if new_trade["Lot Size"] else None  # Changed
-        new_trade["Quantity"] = int(new_trade["Quantity"]) if new_trade["Quantity"] else None  # Changed
+        new_trade["Lot Size"] = float(new_trade["Lot Size"]) if new_trade["Lot Size"] else None
+        new_trade["Quantity"] = int(new_trade["Quantity"]) if new_trade["Quantity"] else None
     except ValueError:
-        st.error("Invalid numeric input. Please enter numbers only for price and size.")
-        return trades  # Return original trades to prevent adding invalid data
+        st.error("Invalid numeric input. Please enter numbers only for price, lot size and quantity.")
+        return trades
 
     # Calculate Total Quantity
     if new_trade["Lot Size"] is not None and new_trade["Quantity"] is not None:
@@ -67,7 +65,7 @@ def add_trade(trades, new_trade):
     else:
         new_trade["Total Quantity"] = None
 
-    # Calculate Profit/Loss and RRR.  These now handle None values correctly.
+    # Calculate Profit/Loss and RRR.
     new_trade["Profit/Loss"] = calculate_profit_loss(
         new_trade["Entry Price"], new_trade["Exit Price"], new_trade["Total Quantity"]
     )
@@ -84,13 +82,13 @@ def update_trade(trades, index, updated_trade):
         try:
             updated_trade["Entry Price"] = float(updated_trade["Entry Price"]) if updated_trade["Entry Price"] else None
             updated_trade["Exit Price"] = float(updated_trade["Exit Price"]) if updated_trade["Exit Price"] else None
-            updated_trade["Lot Size"] = float(updated_trade["Lot Size"]) if updated_trade["Lot Size"] else None #changed
-            updated_trade["Quantity"] = int(updated_trade["Quantity"]) if updated_trade["Quantity"] else None #changed
+            updated_trade["Lot Size"] = float(updated_trade["Lot Size"]) if updated_trade["Lot Size"] else None
+            updated_trade["Quantity"] = int(updated_trade["Quantity"]) if updated_trade["Quantity"] else None
         except ValueError:
-            st.error("Invalid numeric input. Please enter numbers only for price and size.")
+            st.error("Invalid numeric input. Please enter numbers only for price, lot size and quantity.")
             return trades
 
-       # Calculate Total Quantity
+        # Calculate Total Quantity
         if updated_trade["Lot Size"] is not None and updated_trade["Quantity"] is not None:
             updated_trade["Total Quantity"] = updated_trade["Lot Size"] * updated_trade["Quantity"]
         else:
@@ -117,9 +115,9 @@ def display_trades(trades):
     if trades:
         df = pd.DataFrame(trades)
 
-        # Format numeric columns for better readability.  Handle None values in the DataFrame.
-        for col in ["Entry Price", "Exit Price", "Lot Size", "Profit/Loss", "RRR", "Quantity", "Total Quantity"]: #added "Total Quantity"
-            if col in df.columns:  # Check if the column exists
+        # Format numeric columns for better readability.
+        for col in ["Entry Price", "Exit Price", "Lot Size", "Profit/Loss", "RRR", "Quantity", "Total Quantity"]:
+            if col in df.columns:
                 df[col] = df[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "N/A")
 
         # Display the DataFrame
@@ -132,15 +130,14 @@ def clear_all_trades():
     st.session_state.trades = []
 
 # --- Main App Function ---
-
 def main():
     """Main function to run the Streamlit app."""
     st.title("Stock Trade Tracker")
 
-    # Initialize session state for trades
+    # Initialize session state
     if "trades" not in st.session_state:
         st.session_state.trades = []
-    if 'ce_pe' not in st.session_state:  # Initialize CE/PE state
+    if 'ce_pe' not in st.session_state:
         st.session_state.ce_pe = "CE"
 
     # --- Sidebar for Adding Trades ---
@@ -148,22 +145,21 @@ def main():
     new_trade = get_default_trade_entry()
 
     # Use columns to organize input fields
-    col1, col2 = st.sidebar.columns(2)  # Adjust the number '2' as needed
+    col1, col2 = st.sidebar.columns(2)
 
     new_trade["Trade Date"] = col1.date_input("Trade Date", datetime.now())
     new_trade["Stock/Symbol"] = col1.text_input("Stock/Symbol").upper()
-    new_trade["Strategy"] = col1.text_input("Strategy")
-    # CE/PE Toggle Button
-    if col1.button(st.session_state.ce_pe):
-        st.session_state.ce_pe = "PE" if st.session_state.ce_pe == "CE" else "CE"
-    new_trade["CE/PE"] = st.session_state.ce_pe  # Store the current state
+    strategy_options = ['GZ-GZ', 'DZ-DZ', '3rd wave', '5th wave', 'C wave']
+    new_trade["Strategy"] = col1.selectbox("Strategy", options=strategy_options)
+    new_trade["CE/PE"] = col1.radio("CE/PE", options=["CE", "PE"], index=0)
     new_trade["Entry Price"] = col1.text_input("Entry Price", value="")
     new_trade["Exit Price"] = col1.text_input("Exit Price", value="")
-    new_trade["Lot Size"] = col2.text_input("Lot Size", value="")  # Changed
-    new_trade["Quantity"] = col2.text_input("Quantity", value="")  # Changed
-    new_trade["Level"] = col2.number_input("Level", min_value=1, max_value=5, step=1, value=1)
-    new_trade["Criteria"] = col2.text_input("Criteria")
-    new_trade["Current Wave"] = col2.selectbox("Current Wave", options=[1, 2, 3, 4, 5, "A", "B", "C"]) # Added
+    new_trade["Lot Size"] = col2.number_input("Lot Size", value=0)
+    new_trade["Quantity"] = col2.number_input("Quantity", value=1, step=1)
+    new_trade["Confidence Level"] = col2.number_input("Confidence Level", min_value=1, max_value=5, step=1, value=1)
+    criteria_options = ['MBL break-retest', 'Auto break-retest', 'RBD', 'HBD', 'BAP']
+    new_trade["Criteria"] = col2.multiselect("Criteria", options=criteria_options)
+    new_trade["Current Wave"] = col2.selectbox("Current Wave", options=[1, 2, 3, 4, 5, "A", "B", "C"])
     new_trade["Notes"] = st.sidebar.text_area("Notes", height=100)
     new_trade["Image"] = st.sidebar.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
 
@@ -175,7 +171,7 @@ def main():
     display_trades(st.session_state.trades)
 
     # Add an "Edit" button for each trade in the DataFrame
-    if st.session_state.trades: # only show when there are trades
+    if st.session_state.trades:
         st.header("Edit/Delete Trades")
         index_to_edit = st.number_input("Enter index of trade to edit/delete (starting from 0):",
                                         min_value=0, max_value=len(st.session_state.trades) - 1, step=1)
@@ -189,17 +185,17 @@ def main():
                 # Populate the input fields with the existing trade data
                 edited_trade["Trade Date"] = col1.date_input("Trade Date", pd.to_datetime(trade_to_edit["Trade Date"]))
                 edited_trade["Stock/Symbol"] = col1.text_input("Stock/Symbol", value=trade_to_edit["Stock/Symbol"])
-                edited_trade["Strategy"] = col1.text_input("Strategy", value=trade_to_edit["Strategy"])
-                edited_trade["CE/PE"] = col1.text_input("CE/PE", value=trade_to_edit["CE/PE"]) # Added
+                edited_trade["Strategy"] = col1.selectbox("Strategy", options=strategy_options, index=strategy_options.index(trade_to_edit["Strategy"]))
+                edited_trade["CE/PE"] = col1.radio("CE/PE", options=["CE", "PE"], index= ["CE", "PE"].index(trade_to_edit["CE/PE"]))
                 edited_trade["Entry Price"] = col1.text_input("Entry Price", value=trade_to_edit["Entry Price"])
                 edited_trade["Exit Price"] = col1.text_input("Exit Price", value=trade_to_edit["Exit Price"])
-                edited_trade["Lot Size"] = col2.text_input("Lot Size", value=trade_to_edit["Lot Size"])  # Changed
-                edited_trade["Quantity"] = col2.text_input("Quantity", value=trade_to_edit["Quantity"])  # Changed
-                edited_trade["Level"] = col2.number_input("Level", min_value=1, max_value=5, step=1, value=trade_to_edit["Level"])
-                edited_trade["Criteria"] = col2.text_input("Criteria", value=trade_to_edit["Criteria"])
-                edited_trade["Current Wave"] = col2.selectbox("Current Wave", options=[1, 2, 3, 4, 5, "A", "B", "C"], index = [1, 2, 3, 4, 5, "A", "B", "C"].index(trade_to_edit["Current Wave"]) ) # Added
+                edited_trade["Lot Size"] = col2.number_input("Lot Size", value=trade_to_edit["Lot Size"])
+                edited_trade["Quantity"] = col2.number_input("Quantity", value=trade_to_edit["Quantity"], step=1)
+                edited_trade["Confidence Level"] = col2.number_input("Confidence Level", min_value=1, max_value=5, step=1, value=trade_to_edit["Confidence Level"])
+                edited_trade["Criteria"] = col2.multiselect("Criteria", options=criteria_options, default=trade_to_edit["Criteria"])
+                edited_trade["Current Wave"] = col2.selectbox("Current Wave", options=[1, 2, 3, 4, 5, "A", "B", "C"], index = [1, 2, 3, 4, 5, "A", "B", "C"].index(trade_to_edit["Current Wave"]))
                 edited_trade["Notes"] = st.text_area("Notes", value=trade_to_edit["Notes"], height=100)
-                edited_trade["Image"] = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"]) #keep same
+                edited_trade["Image"] = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
 
                 st.session_state.trades = update_trade(st.session_state.trades, index_to_edit, edited_trade)
                 st.success("Trade updated!")
@@ -214,7 +210,7 @@ def main():
     if st.button("Clear All Trades"):
         clear_all_trades()
         st.warning("All trades cleared!")
-        display_trades(st.session_state.trades)  # Update display after clearing
+        display_trades(st.session_state.trades)
 
 if __name__ == "__main__":
     main()
