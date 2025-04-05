@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import io
+import math
 
 # Set default page config to wide mode
 st.set_page_config(layout="wide")
@@ -42,6 +43,18 @@ def calculate_buy_size(total_quantity, ltp):
         return total_quantity * ltp
     return None
 
+def round_to_nearest_hundred(ltp):
+    """Rounds a number to the nearest hundred.
+    Args:
+        ltp (float): The number to round.
+    Returns:
+        int: The rounded number.
+    """
+    if ltp is not None:
+        return int(round(ltp / 100.0) * 100)
+    return None
+
+
 def add_trade(trades, new_trade):
     """Adds a new trade to the list, and calculates derived values.
     """
@@ -63,6 +76,10 @@ def add_trade(trades, new_trade):
 
     # Calculate Buy Size
     new_trade["Buy Size"] = calculate_buy_size(new_trade["Total Quantity"], new_trade["LTP"])
+
+    # Default Strike Price logic
+    if new_trade["Strike Price"] is None and new_trade["LTP"] is not None:
+        new_trade["Strike Price"] = round_to_nearest_hundred(new_trade["LTP"])
 
     trades.append(new_trade)
     return trades
@@ -88,6 +105,11 @@ def update_trade(trades, index, updated_trade):
 
         # Calculate Buy Size
         updated_trade["Buy Size"] = calculate_buy_size(updated_trade["Total Quantity"], updated_trade["LTP"])
+
+        # Default Strike Price logic
+        if updated_trade["Strike Price"] is None and updated_trade["LTP"] is not None:
+            updated_trade["Strike Price"] = round_to_nearest_hundred(updated_trade["LTP"])
+
         trades[index] = updated_trade
     return trades
 
@@ -174,7 +196,7 @@ def main():
     # Use columns to organize input fields
     col1, col2 = st.sidebar.columns(2)
 
-    new_trade["Date"] = col1.date_input("Date", datetime.now())  # Changed to Date
+    new_trade["Date"] = col1.date_input("Date", datetime.now())
     new_trade["Stock/Symbol"] = col1.text_input("Stock/Symbol").upper()
     strategy_options = ['GZ-GZ', 'DZ-DZ', '3rd wave', '5th wave', 'C wave']
     new_trade["Strategy"] = col1.selectbox("Strategy", options=strategy_options)
@@ -211,27 +233,27 @@ def main():
                 trade_to_edit = st.session_state.trades[index_to_edit]
 
                 # Populate the input fields with the existing trade data
-                edited_trade["Date"] = col1.date_input("Date", pd.to_datetime(trade_to_edit["Date"]))  # Changed to Date
+                edited_trade["Date"] = col1.date_input("Date", pd.to_datetime(trade_to_edit["Date"]))
                 edited_trade["Stock/Symbol"] = col1.text_input("Stock/Symbol", value=trade_to_edit["Stock/Symbol"])
                 edited_trade["Strategy"] = col1.selectbox("Strategy", options=strategy_options,
-                                                          index=strategy_options.index(trade_to_edit["Strategy"]))
+                                                          index=strategy_options.index(edited_trade["Strategy"]))
                 edited_trade["CE/PE"] = col1.radio("CE/PE", options=["CE", "PE"],
-                                                    index=["CE", "PE"].index(trade_to_edit["CE/PE"]))
+                                                    index=["CE", "PE"].index(edited_trade["CE/PE"]))
                 edited_trade["Strike Price"] = col1.number_input("Strike Price", step=50,
                                                                 value=edited_trade["Strike Price"])
                 edited_trade["Expiry Date"] = col1.date_input("Expiry Date",
-                                                             value=pd.to_datetime(trade_to_edit["Expiry Date"]))
-                edited_trade["LTP"] = col1.text_input("LTP", value=trade_to_edit["LTP"])
+                                                             value=pd.to_datetime(edited_trade["Expiry Date"]))
+                edited_trade["LTP"] = col1.text_input("LTP", value=edited_trade["LTP"])
                 edited_trade["Lot Size"] = col2.number_input("Lot Size", value=trade_to_size["Lot Size"])
-                edited_trade["Quantity"] = col2.number_input("Quantity", value=trade_to_edit["Quantity"], step=1)
+                edited_trade["Quantity"] = col2.number_input("Quantity", value=edited_trade["Quantity"], step=1)
                 edited_trade["C Level"] = col2.number_input("C Level", min_value=1, max_value=5,
-                                                            value=trade_to_edit["C Level"])
+                                                            value=edited_trade["C Level"])
                 edited_trade["Criteria"] = col2.multiselect("Criteria", options=criteria_options,
-                                                            default=trade_to_edit["Criteria"])
+                                                            default=edited_trade["Criteria"])
                 edited_trade["Current Wave"] = col2.selectbox("Current Wave", options=[1, 2, 3, 4, 5, "A", "B", "C"],
                                                              index=[1, 2, 3, 4, 5, "A", "B", "C"].index(
-                                                                 trade_to_edit["Current Wave"]))
-                edited_trade["Notes"] = st.text_area("Notes", value=trade_to_edit["Notes"], height=100)
+                                                                 edited_trade["Current Wave"]))
+                edited_trade["Notes"] = st.text_area("Notes", value=edited_trade["Notes"], height=100)
                 edited_trade["Image"] = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
 
                 st.session_state.trades = update_trade(st.session_state.trades, index_to_edit, edited_trade)
