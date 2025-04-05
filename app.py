@@ -207,7 +207,7 @@ def main():
     new_trade["Lot Size"] = col2.number_input("Lot Size", value=0)
     new_trade["Quantity"] = col2.number_input("Quantity", value=1, step=1)
     new_trade["C Level"] = col2.number_input("C Level", min_value=1, max_value=5, step=1, value=1)
-    criteria_options = ['MBL break-retest', 'Auto break-retest', 'RBD', 'HBD', 'BAP', 'Consolidation']
+    criteria_options = ['MBL break-retest', 'Auto break-retest', 'RBD', 'HBD', 'BAP', 'Consolidation', 'Bullish Pressure', 'Bearish Pressure']
     new_trade["Criteria"] = col2.multiselect("Criteria", options=criteria_options)
     new_trade["Current Wave"] = col2.selectbox("Current Wave", options=[1, 2, 3, 4, 5, "A", "B", "C"])
     new_trade["Notes"] = st.sidebar.text_area("Notes", height=100)
