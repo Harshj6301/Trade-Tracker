@@ -181,8 +181,8 @@ def import_from_csv(file):
 # --- Main App Function ---
 def main():
     """Main function to run the Streamlit app."""
-    st.title("Watchlist Tracker")
-
+    st.subheader("Watchlist Tracker - v5", divider='red')
+    
     # Initialize session state
     if "trades" not in st.session_state:
         st.session_state.trades = []
