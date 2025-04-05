@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import io
 
 # --- Core Data Structure ---
 # Using a dictionary for simplicity and direct conversion to DataFrame
@@ -10,53 +11,46 @@ def get_default_trade_entry():
         "Stock/Symbol": "",
         "Strategy": "",
         "CE/PE": "CE",
-        "Entry Price": None,
-        "Exit Price": None,
+        "LTP": None, # Added LTP
         "Lot Size": None,
         "Quantity": None,
         "Total Quantity": None,
-        "Profit/Loss": None,
         "RRR": None,
         "Notes": "",
         "Image": None,
-        "Confidence Level": None,  # Changed
-        "Criteria": [],  # Changed to list for multiselect
+        "C Level": None,  # Changed to C Level
+        "Criteria": [],
         "Current Wave": None,
     }
 
 # --- Helper Functions ---
-def calculate_profit_loss(entry_price, exit_price, total_quantity):
-    """Calculates profit/loss, handling potential errors."""
-    if entry_price is not None and exit_price is not None and total_quantity is not None:
-        return (exit_price - entry_price) * total_quantity
-    return None
 
-def calculate_rrr(entry_price, exit_price, lot_size, quantity):
+def calculate_rrr(ltp, lot_size, quantity):
     """Calculates the Risk-Reward Ratio.
     Args:
-        entry_price (float): The entry price of the trade.
-        exit_price (float): The exit price of the trade.
+        ltp (float): The LTP.
         lot_size (float): The lot size of the trade.
         quantity (int): quantity of lots
     Returns:
         float: The Risk-Reward Ratio, or None if calculation is not possible.
     """
-    if entry_price is not None and exit_price is not None and lot_size is not None and quantity is not None and lot_size != 0:
+    if ltp is not None and lot_size is not None and quantity is not None and lot_size != 0:
         position_size = lot_size * quantity
-        return abs((exit_price - entry_price) / position_size)
+        return abs( ltp / position_size)
     return None
 
+
+
 def add_trade(trades, new_trade):
-    """Adds a new trade to the list, and recalculates derived values.
+    """Adds a new trade to the list, and calculates derived values.
     """
     # Convert string inputs to numeric, handling empty strings
     try:
-        new_trade["Entry Price"] = float(new_trade["Entry Price"]) if new_trade["Entry Price"] else None
-        new_trade["Exit Price"] = float(new_trade["Exit Price"]) if new_trade["Exit Price"] else None
+        new_trade["LTP"] = float(new_trade["LTP"]) if new_trade["LTP"] else None
         new_trade["Lot Size"] = float(new_trade["Lot Size"]) if new_trade["Lot Size"] else None
         new_trade["Quantity"] = int(new_trade["Quantity"]) if new_trade["Quantity"] else None
     except ValueError:
-        st.error("Invalid numeric input. Please enter numbers only for price, lot size and quantity.")
+        st.error("Invalid numeric input. Please enter numbers only for LTP, lot size and quantity.")
         return trades
 
     # Calculate Total Quantity
@@ -65,12 +59,9 @@ def add_trade(trades, new_trade):
     else:
         new_trade["Total Quantity"] = None
 
-    # Calculate Profit/Loss and RRR.
-    new_trade["Profit/Loss"] = calculate_profit_loss(
-        new_trade["Entry Price"], new_trade["Exit Price"], new_trade["Total Quantity"]
-    )
+    # Calculate  RRR.
     new_trade["RRR"] = calculate_rrr(
-        new_trade["Entry Price"], new_trade["Exit Price"], new_trade["Lot Size"], new_trade["Quantity"]
+        new_trade["LTP"],  new_trade["Lot Size"], new_trade["Quantity"]
     )
 
     trades.append(new_trade)
@@ -80,12 +71,11 @@ def update_trade(trades, index, updated_trade):
     """Updates an existing trade in the list, recalculating derived values."""
     if 0 <= index < len(trades):
         try:
-            updated_trade["Entry Price"] = float(updated_trade["Entry Price"]) if updated_trade["Entry Price"] else None
-            updated_trade["Exit Price"] = float(updated_trade["Exit Price"]) if updated_trade["Exit Price"] else None
+            updated_trade["LTP"] = float(updated_trade["LTP"]) if updated_trade["LTP"] else None
             updated_trade["Lot Size"] = float(updated_trade["Lot Size"]) if updated_trade["Lot Size"] else None
             updated_trade["Quantity"] = int(updated_trade["Quantity"]) if updated_trade["Quantity"] else None
         except ValueError:
-            st.error("Invalid numeric input. Please enter numbers only for price, lot size and quantity.")
+            st.error("Invalid numeric input. Please enter numbers only for  LTP, lot size and quantity.")
             return trades
 
         # Calculate Total Quantity
@@ -94,12 +84,9 @@ def update_trade(trades, index, updated_trade):
         else:
             updated_trade["Total Quantity"] = None
 
-        # Calculate Profit/Loss and RRR
-        updated_trade["Profit/Loss"] = calculate_profit_loss(
-            updated_trade["Entry Price"], updated_trade["Exit Price"], updated_trade["Total Quantity"]
-        )
+        # Calculate  RRR
         updated_trade["RRR"] = calculate_rrr(
-            updated_trade["Entry Price"], updated_trade["Exit Price"], updated_trade["Lot Size"], updated_trade["Quantity"]
+            updated_trade["LTP"], updated_trade["Lot Size"], updated_trade["Quantity"]
         )
         trades[index] = updated_trade
     return trades
@@ -116,7 +103,7 @@ def display_trades(trades):
         df = pd.DataFrame(trades)
 
         # Format numeric columns for better readability.
-        for col in ["Entry Price", "Exit Price", "Lot Size", "Profit/Loss", "RRR", "Quantity", "Total Quantity"]:
+        for col in ["LTP", "Lot Size",  "RRR", "Quantity", "Total Quantity", "C Level"]: # Removed Entry, Exit, P/L
             if col in df.columns:
                 df[col] = df[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "N/A")
 
@@ -125,14 +112,44 @@ def display_trades(trades):
     else:
         st.write("No trades recorded yet.")
 
+
+
 def clear_all_trades():
     """Clears all trades."""
     st.session_state.trades = []
 
+def export_to_csv(trades):
+    """Exports the trades data to a CSV file."""
+    if trades:
+        df = pd.DataFrame(trades)
+        # Use a string buffer to hold the CSV data in memory
+        csv_buffer = io.StringIO()
+        df.to_csv(csv_buffer, index=False)  #  index=False to avoid writing the DataFrame index
+        csv_content = csv_buffer.getvalue()  # Get the string value from the buffer
+        return csv_content
+    else:
+        return None
+
+def import_from_csv(file):
+    """Imports trades data from a CSV file."""
+    try:
+        df = pd.read_csv(file)
+        # Convert 'Trade Date' to datetime objects, handling potential parsing issues
+        df['Trade Date'] = pd.to_datetime(df['Trade Date'], errors='coerce')
+        # Drop rows where 'Trade Date' is NaT (Not a Time) after conversion
+        df.dropna(subset=['Trade Date'], inplace=True)
+
+        # Convert the DataFrame to a list of dictionaries, which is the format used
+        trades = df.to_dict(orient='records')
+        return trades
+    except Exception as e:
+        st.error(f"Error reading CSV file: {e}")
+        return None
+
 # --- Main App Function ---
 def main():
     """Main function to run the Streamlit app."""
-    st.title("Stock Trade Tracker")
+    st.title("Watchlist Tracker") # Changed title
 
     # Initialize session state
     if "trades" not in st.session_state:
@@ -152,11 +169,10 @@ def main():
     strategy_options = ['GZ-GZ', 'DZ-DZ', '3rd wave', '5th wave', 'C wave']
     new_trade["Strategy"] = col1.selectbox("Strategy", options=strategy_options)
     new_trade["CE/PE"] = col1.radio("CE/PE", options=["CE", "PE"], index=0)
-    new_trade["Entry Price"] = col1.text_input("Entry Price", value="")
-    new_trade["Exit Price"] = col1.text_input("Exit Price", value="")
+    new_trade["LTP"] = col1.text_input("LTP", value="") # Added LTP
     new_trade["Lot Size"] = col2.number_input("Lot Size", value=0)
     new_trade["Quantity"] = col2.number_input("Quantity", value=1, step=1)
-    new_trade["Confidence Level"] = col2.number_input("Confidence Level", min_value=1, max_value=5, step=1, value=1)
+    new_trade["C Level"] = col2.number_input("C Level", min_value=1, max_value=5, step=1, value=1) # Changed
     criteria_options = ['MBL break-retest', 'Auto break-retest', 'RBD', 'HBD', 'BAP']
     new_trade["Criteria"] = col2.multiselect("Criteria", options=criteria_options)
     new_trade["Current Wave"] = col2.selectbox("Current Wave", options=[1, 2, 3, 4, 5, "A", "B", "C"])
@@ -187,11 +203,10 @@ def main():
                 edited_trade["Stock/Symbol"] = col1.text_input("Stock/Symbol", value=trade_to_edit["Stock/Symbol"])
                 edited_trade["Strategy"] = col1.selectbox("Strategy", options=strategy_options, index=strategy_options.index(trade_to_edit["Strategy"]))
                 edited_trade["CE/PE"] = col1.radio("CE/PE", options=["CE", "PE"], index= ["CE", "PE"].index(trade_to_edit["CE/PE"]))
-                edited_trade["Entry Price"] = col1.text_input("Entry Price", value=trade_to_edit["Entry Price"])
-                edited_trade["Exit Price"] = col1.text_input("Exit Price", value=trade_to_edit["Exit Price"])
+                edited_trade["LTP"] = col1.text_input("LTP", value=trade_to_edit["LTP"])
                 edited_trade["Lot Size"] = col2.number_input("Lot Size", value=trade_to_edit["Lot Size"])
                 edited_trade["Quantity"] = col2.number_input("Quantity", value=trade_to_edit["Quantity"], step=1)
-                edited_trade["Confidence Level"] = col2.number_input("Confidence Level", min_value=1, max_value=5, step=1, value=trade_to_edit["Confidence Level"])
+                edited_trade["C Level"] = col2.number_input("C Level", min_value=1, max_value=5, step=1, value=trade_to_edit["C Level"])
                 edited_trade["Criteria"] = col2.multiselect("Criteria", options=criteria_options, default=trade_to_edit["Criteria"])
                 edited_trade["Current Wave"] = col2.selectbox("Current Wave", options=[1, 2, 3, 4, 5, "A", "B", "C"], index = [1, 2, 3, 4, 5, "A", "B", "C"].index(trade_to_edit["Current Wave"]))
                 edited_trade["Notes"] = st.text_area("Notes", value=trade_to_edit["Notes"], height=100)
@@ -211,6 +226,29 @@ def main():
         clear_all_trades()
         st.warning("All trades cleared!")
         display_trades(st.session_state.trades)
+
+    # Add buttons for exporting and importing data
+    col1, col2 = st.columns(2)
+    csv_data = export_to_csv(st.session_state.trades) #get csv data
+    if csv_data:
+        col1.download_button(
+            label="Export to CSV",
+            data=csv_data,
+            file_name="trades.csv",
+            mime="text/csv",
+        )
+
+    uploaded_file = col2.file_uploader("Import from CSV", type="csv")
+    if uploaded_file is not None:
+        imported_trades = import_from_csv(uploaded_file)
+        if imported_trades:
+            st.session_state.trades = imported_trades
+            st.success("Data imported successfully!")
+            display_trades(st.session_state.trades)  # Refresh the display
+        else:
+            st.error("Failed to import data from CSV.")
+
+
 
 if __name__ == "__main__":
     main()
