@@ -10,17 +10,17 @@ st.set_page_config(layout="wide")
 # Using a dictionary for simplicity and direct conversion to DataFrame
 def get_default_trade_entry():
     return {
-        "Date": datetime.now().strftime("%Y-%m-%d"), # Changed to Date
+        "Date": datetime.now().strftime("%Y-%m-%d"),
         "Stock/Symbol": "",
         "Strategy": "",
         "CE/PE": "CE",
-        "Strike Price": None, # Added Strike Price
-        "Expiry Date": None, # Added Expiry Date
+        "Strike Price": None,
+        "Expiry Date": None,
         "LTP": None,
         "Lot Size": None,
         "Quantity": None,
         "Total Quantity": None,
-        "Buy Size": None, # Added Buy Size
+        "Buy Size": None,
         "Notes": "",
         "Image": None,
         "C Level": None,
@@ -50,7 +50,7 @@ def add_trade(trades, new_trade):
         new_trade["LTP"] = float(new_trade["LTP"]) if new_trade["LTP"] else None
         new_trade["Lot Size"] = float(new_trade["Lot Size"]) if new_trade["Lot Size"] else None
         new_trade["Quantity"] = int(new_trade["Quantity"]) if new_trade["Quantity"] else None
-        new_trade["Strike Price"] = float(new_trade["Strike Price"]) if new_trade["Strike Price"] else None # Added
+        new_trade["Strike Price"] = float(new_trade["Strike Price"]) if new_trade["Strike Price"] else None
     except ValueError:
         st.error("Invalid numeric input. Please enter numbers only for LTP, lot size, quantity and strike price.")
         return trades
@@ -61,7 +61,7 @@ def add_trade(trades, new_trade):
     else:
         new_trade["Total Quantity"] = None
 
-     # Calculate Buy Size
+    # Calculate Buy Size
     new_trade["Buy Size"] = calculate_buy_size(new_trade["Total Quantity"], new_trade["LTP"])
 
     trades.append(new_trade)
@@ -74,7 +74,7 @@ def update_trade(trades, index, updated_trade):
             updated_trade["LTP"] = float(updated_trade["LTP"]) if updated_trade["LTP"] else None
             updated_trade["Lot Size"] = float(updated_trade["Lot Size"]) if updated_trade["Lot Size"] else None
             updated_trade["Quantity"] = int(updated_trade["Quantity"]) if updated_trade["Quantity"] else None
-            updated_trade["Strike Price"] = float(updated_trade["Strike Price"]) if updated_trade["Strike Price"] else None # Added
+            updated_trade["Strike Price"] = float(updated_trade["Strike Price"]) if updated_trade["Strike Price"] else None
 
         except ValueError:
             st.error("Invalid numeric input. Please enter numbers only for LTP, lot size, quantity and strike price.")
@@ -101,30 +101,28 @@ def display_trades(trades):
     """Displays the trades in a Streamlit DataFrame, with formatting."""
     if trades:
         df = pd.DataFrame(trades)
-        # Create 'Expiry Display' only if both 'Expiry Date' and 'Strike Price' columns exist
+
+        # Combine Expiry Date, Strike Price, and CE/PE into a single column
         if 'Expiry Date' in df.columns and 'Strike Price' in df.columns:
-            df['Expiry Display'] = df.apply(
+            df['Strike Price'] = df.apply(
                 lambda row: f"{pd.to_datetime(row['Expiry Date']).strftime('%d %b')} {int(row['Strike Price'])} {row['CE/PE']}"
                 if pd.notnull(row['Expiry Date']) and pd.notnull(row['Strike Price'])
                 else 'N/A', axis=1
             )
         else:
-            df['Expiry Display'] = 'N/A'  # Or any other default value you prefer
+            df['Strike Price'] = 'N/A'
 
         # Format numeric columns for better readability.
-        for col in ["LTP", "Lot Size", "Quantity", "Total Quantity", "C Level","Buy Size"]: # Removed RRR
+        for col in ["LTP", "Lot Size", "Quantity", "Total Quantity", "C Level", "Buy Size"]:
             if col in df.columns:
                 df[col] = df[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "N/A")
 
-        # Display the DataFrame
-        columns_to_display = ['Date', 'Stock/Symbol', 'Strategy', 'CE/PE',  'Expiry Display', 'LTP', 'Lot Size', 'Quantity', 'Total Quantity', 'Buy Size', 'Notes', 'Image', 'C Level', 'Criteria', 'Current Wave']
-        # Ensure only columns that exist in df are displayed
+        # Select the columns to display
+        columns_to_display = ['Date', 'Stock/Symbol', 'Strategy',  'Strike Price',  'LTP', 'Lot Size', 'Quantity', 'Total Quantity', 'Buy Size', 'Notes', 'Image', 'C Level', 'Criteria', 'Current Wave'] # Removed CE/PE and changed Expiry Display to Strike Price
         existing_columns = [col for col in columns_to_display if col in df.columns]
         st.dataframe(df[existing_columns], hide_index=True)
     else:
         st.write("No trades recorded yet.")
-
-
 
 def clear_all_trades():
     """Clears all trades."""
@@ -136,7 +134,7 @@ def export_to_csv(trades):
         df = pd.DataFrame(trades)
         # Use a string buffer to hold the CSV data in memory
         csv_buffer = io.StringIO()
-        df.to_csv(csv_buffer, index=False)  #  index=False to avoid writing the DataFrame index
+        df.to_csv(csv_buffer, index=False)  # index=False to avoid writing the DataFrame index
         csv_content = csv_buffer.getvalue()  # Get the string value from the buffer
         return csv_content
     else:
@@ -147,7 +145,7 @@ def import_from_csv(file):
     try:
         df = pd.read_csv(file)
         # Convert 'Trade Date' to datetime objects, handling potential parsing issues
-        df['Date'] = pd.to_datetime(df['Date'], errors='coerce') # Changed to Date
+        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')  # Changed to Date
         # Drop rows where 'Date' is NaT (Not a Time) after conversion
         df.dropna(subset=['Date'], inplace=True)
 
@@ -176,13 +174,13 @@ def main():
     # Use columns to organize input fields
     col1, col2 = st.sidebar.columns(2)
 
-    new_trade["Date"] = col1.date_input("Date", datetime.now()) # Changed to Date
+    new_trade["Date"] = col1.date_input("Date", datetime.now())  # Changed to Date
     new_trade["Stock/Symbol"] = col1.text_input("Stock/Symbol").upper()
     strategy_options = ['GZ-GZ', 'DZ-DZ', '3rd wave', '5th wave', 'C wave']
     new_trade["Strategy"] = col1.selectbox("Strategy", options=strategy_options)
     new_trade["CE/PE"] = col1.radio("CE/PE", options=["CE", "PE"], index=0)
-    new_trade["Strike Price"] = col1.number_input("Strike Price", step=50, value=0) # Added Strike Price
-    new_trade["Expiry Date"] = col1.date_input("Expiry Date") # Added Expiry Date
+    new_trade["Strike Price"] = col1.number_input("Strike Price", step=50, value=0)
+    new_trade["Expiry Date"] = col1.date_input("Expiry Date")
     new_trade["LTP"] = col1.text_input("LTP", value="")
     new_trade["Lot Size"] = col2.number_input("Lot Size", value=0)
     new_trade["Quantity"] = col2.number_input("Quantity", value=1, step=1)
@@ -213,18 +211,26 @@ def main():
                 trade_to_edit = st.session_state.trades[index_to_edit]
 
                 # Populate the input fields with the existing trade data
-                edited_trade["Date"] = col1.date_input("Date", pd.to_datetime(trade_to_edit["Date"])) # Changed to Date
+                edited_trade["Date"] = col1.date_input("Date", pd.to_datetime(trade_to_edit["Date"]))  # Changed to Date
                 edited_trade["Stock/Symbol"] = col1.text_input("Stock/Symbol", value=trade_to_edit["Stock/Symbol"])
-                edited_trade["Strategy"] = col1.selectbox("Strategy", options=strategy_options, index=strategy_options.index(trade_to_edit["Strategy"]))
-                edited_trade["CE/PE"] = col1.radio("CE/PE", options=["CE", "PE"], index= ["CE", "PE"].index(trade_to_edit["CE/PE"]))
-                edited_trade["Strike Price"] = col1.number_input("Strike Price", step=50, value=edited_trade["Strike Price"]) # Added
-                edited_trade["Expiry Date"] = col1.date_input("Expiry Date", value = pd.to_datetime(trade_to_edit["Expiry Date"])) # Added
+                edited_trade["Strategy"] = col1.selectbox("Strategy", options=strategy_options,
+                                                          index=strategy_options.index(trade_to_edit["Strategy"]))
+                edited_trade["CE/PE"] = col1.radio("CE/PE", options=["CE", "PE"],
+                                                    index=["CE", "PE"].index(trade_to_edit["CE/PE"]))
+                edited_trade["Strike Price"] = col1.number_input("Strike Price", step=50,
+                                                                value=edited_trade["Strike Price"])
+                edited_trade["Expiry Date"] = col1.date_input("Expiry Date",
+                                                             value=pd.to_datetime(trade_to_edit["Expiry Date"]))
                 edited_trade["LTP"] = col1.text_input("LTP", value=trade_to_edit["LTP"])
                 edited_trade["Lot Size"] = col2.number_input("Lot Size", value=trade_to_size["Lot Size"])
                 edited_trade["Quantity"] = col2.number_input("Quantity", value=trade_to_edit["Quantity"], step=1)
-                edited_trade["C Level"] = col2.number_input("C Level", min_value=1, max_value=5, step=1, value=trade_to_edit["C Level"])
-                edited_trade["Criteria"] = col2.multiselect("Criteria", options=criteria_options, default=trade_to_edit["Criteria"])
-                edited_trade["Current Wave"] = col2.selectbox("Current Wave", options=[1, 2, 3, 4, 5, "A", "B", "C"], index = [1, 2, 3, 4, 5, "A", "B", "C"].index(trade_to_edit["Current Wave"]))
+                edited_trade["C Level"] = col2.number_input("C Level", min_value=1, max_value=5,
+                                                            value=trade_to_edit["C Level"])
+                edited_trade["Criteria"] = col2.multiselect("Criteria", options=criteria_options,
+                                                            default=trade_to_edit["Criteria"])
+                edited_trade["Current Wave"] = col2.selectbox("Current Wave", options=[1, 2, 3, 4, 5, "A", "B", "C"],
+                                                             index=[1, 2, 3, 4, 5, "A", "B", "C"].index(
+                                                                 trade_to_edit["Current Wave"]))
                 edited_trade["Notes"] = st.text_area("Notes", value=trade_to_edit["Notes"], height=100)
                 edited_trade["Image"] = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
 
