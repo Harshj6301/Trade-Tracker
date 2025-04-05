@@ -101,16 +101,26 @@ def display_trades(trades):
     """Displays the trades in a Streamlit DataFrame, with formatting."""
     if trades:
         df = pd.DataFrame(trades)
-        df['Expiry Display'] = df.apply(lambda row: f"{pd.to_datetime(row['Expiry Date']).strftime('%d %b')} {int(row['Strike Price'])} {row['CE/PE']}"
-                                          if pd.notnull(row['Expiry Date']) and pd.notnull(row['Strike Price'])
-                                          else 'N/A', axis=1)
+        # Create 'Expiry Display' only if both 'Expiry Date' and 'Strike Price' columns exist
+        if 'Expiry Date' in df.columns and 'Strike Price' in df.columns:
+            df['Expiry Display'] = df.apply(
+                lambda row: f"{pd.to_datetime(row['Expiry Date']).strftime('%d %b')} {int(row['Strike Price'])} {row['CE/PE']}"
+                if pd.notnull(row['Expiry Date']) and pd.notnull(row['Strike Price'])
+                else 'N/A', axis=1
+            )
+        else:
+            df['Expiry Display'] = 'N/A'  # Or any other default value you prefer
+
         # Format numeric columns for better readability.
         for col in ["LTP", "Lot Size", "Quantity", "Total Quantity", "C Level","Buy Size"]: # Removed RRR
             if col in df.columns:
                 df[col] = df[col].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "N/A")
 
         # Display the DataFrame
-        st.dataframe(df[['Date', 'Stock/Symbol', 'Strategy', 'CE/PE',  'Expiry Display', 'LTP', 'Lot Size', 'Quantity', 'Total Quantity', 'Buy Size', 'Notes', 'Image', 'C Level', 'Criteria', 'Current Wave']], hide_index=True) # Removed RRR and added Expiry Display
+        columns_to_display = ['Date', 'Stock/Symbol', 'Strategy', 'CE/PE',  'Expiry Display', 'LTP', 'Lot Size', 'Quantity', 'Total Quantity', 'Buy Size', 'Notes', 'Image', 'C Level', 'Criteria', 'Current Wave']
+        # Ensure only columns that exist in df are displayed
+        existing_columns = [col for col in columns_to_display if col in df.columns]
+        st.dataframe(df[existing_columns], hide_index=True)
     else:
         st.write("No trades recorded yet.")
 
@@ -138,7 +148,7 @@ def import_from_csv(file):
         df = pd.read_csv(file)
         # Convert 'Trade Date' to datetime objects, handling potential parsing issues
         df['Date'] = pd.to_datetime(df['Date'], errors='coerce') # Changed to Date
-        # Drop rows where 'Trade Date' is NaT (Not a Time) after conversion
+        # Drop rows where 'Date' is NaT (Not a Time) after conversion
         df.dropna(subset=['Date'], inplace=True)
 
         # Convert the DataFrame to a list of dictionaries, which is the format used
